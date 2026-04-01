@@ -1,0 +1,107 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600;800&family=Inter:wght@300;400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
+@import "tailwindcss";
+
+/* ── Gestalt Design System ─────────────────────────────────── */
+
+@theme {
+  /* Primary */
+  --color-primary: #904b36;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #ffd3c6;
+  --color-on-primary-container: #934e38;
+  --color-primary-fixed: #ffdbd0;
+  --color-primary-fixed-dim: #ffb59e;
+  --color-on-primary-fixed: #3a0b00;
+  --color-on-primary-fixed-variant: #733521;
+  --color-inverse-primary: #ffb59e;
+
+  /* Secondary */
+  --color-secondary: #635d58;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #eae1da;
+  --color-on-secondary-container: #69635e;
+  --color-secondary-fixed: #eae1da;
+  --color-secondary-fixed-dim: #cdc5be;
+  --color-on-secondary-fixed: #1f1b17;
+  --color-on-secondary-fixed-variant: #4b4641;
+
+  /* Tertiary */
+  --color-tertiary: #6b5c4c;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #eed9c6;
+  --color-on-tertiary-container: #6d5e4f;
+  --color-tertiary-fixed: #f4dfcb;
+  --color-tertiary-fixed-dim: #d7c3b0;
+  --color-on-tertiary-fixed: #241a0e;
+  --color-on-tertiary-fixed-variant: #524436;
+
+  /* Error */
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  /* Surface */
+  --color-surface: #fcf9f4;
+  --color-surface-dim: #dcdad5;
+  --color-surface-bright: #fcf9f4;
+  --color-surface-variant: #e5e2dd;
+  --color-on-surface: #1c1c19;
+  --color-on-surface-variant: #4b463e;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f3ee;
+  --color-surface-container: #f0ede8;
+  --color-surface-container-high: #ebe8e3;
+  --color-surface-container-highest: #e5e2dd;
+  --color-surface-tint: #904b36;
+  --color-inverse-surface: #31302d;
+  --color-inverse-on-surface: #f3f0eb;
+
+  /* Outline */
+  --color-outline: #7d766d;
+  --color-outline-variant: #cec5bb;
+
+  /* Background */
+  --color-background: #fcf9f4;
+  --color-on-background: #1c1c19;
+
+  /* Fonts */
+  --font-headline: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-label: "Inter", sans-serif;
+}
+
+/* ── Material Symbols ──────────────────────────────────────── */
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24;
+}
+
+/* ── Architectural Clip Paths ──────────────────────────────── */
+.plane-mask {
+  clip-path: polygon(0 0, 100% 15%, 100% 100%, 0 85%);
+}
+
+.curved-plane {
+  border-radius: 100% 0% 100% 0% / 40% 0% 60% 0%;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}

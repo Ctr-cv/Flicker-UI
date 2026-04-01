@@ -1,0 +1,59 @@
+# ── Dependencies ───────────────────────────────────────────
+node_modules/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# ── Build output ───────────────────────────────────────────
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# ── Environment / secrets ─────────────────────────────────
+.env
+.env.*
+!.env.example
+backend/.env
+
+# ── Python virtualenvs ────────────────────────────────────
+venv/
+.venv/
+env/
+
+# ── IDE / editor ──────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── OS files ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ── Logs ──────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Model weights (keep out of repo) ─────────────────────
+*.bin
+*.onnx
+*.pt
+*.pth
+*.h5
+*.tflite
+*.pb
+
+# ── Misc ──────────────────────────────────────────────────
+*.tsbuildinfo
+.cache/
+coverage/
