@@ -86,6 +86,26 @@
   border-radius: 100% 0% 100% 0% / 40% 0% 60% 0%;
 }
 
+.soft-arc {
+  border-radius: 60% 40% 50% 50% / 45% 55% 45% 55%;
+}
+
+.diagonal-slice {
+  clip-path: polygon(0 20%, 100% 0%, 100% 80%, 0 100%);
+}
+
+.wedge-plane {
+  border-radius: 80% 0% 30% 0% / 60% 0% 40% 0%;
+}
+
+.ellipse-plane {
+  border-radius: 50%;
+}
+
+.hex-plane {
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+}
+
 .glass-panel {
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(20px);
