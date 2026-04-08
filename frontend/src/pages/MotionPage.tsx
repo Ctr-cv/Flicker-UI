@@ -68,7 +68,8 @@ export function MotionPage() {
                 autoPlay
                 playsInline
                 muted
-                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                // Added -scale-x-100 to mirror the feed horizontally
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 -scale-x-100 ${
                   cameraActive ? "opacity-100" : "opacity-0"
                 }`}
               />
