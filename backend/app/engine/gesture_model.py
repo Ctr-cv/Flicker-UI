@@ -16,21 +16,26 @@ from app.engine.base import BaseModelEngine
 
 # Labels your model can output — edit to match your actual classes
 GESTURE_LABELS = [
-    "open_palm",
-    "closed_fist",
-    "pointing_up",
-    "thumbs_up",
-    "peace_sign",
-    "pinch",
-    "swipe_left",
-    "swipe_right",
-    "none",
+    "NO_GESTURE",
+    "ONE_FINGER_POINT",
+    "TWO_FINGER_POINT",
+    "ONE_FINGER_CLICK",
+    "TWO_FINGER_CLICK",
+    "THROW_UP",
+    "THROW_DOWN",
+    "THROW_LEFT",
+    "THROW_RIGHT",
+    "OPEN_TWICE",
+    "ONE_FINGER_DOUBLE_CLICK",
+    "TWO_FINGER_DOUBLE_CLICK",
+    "ZOOM_IN",
+    "ZOOM_OUT"
 ]
 
 
 class GestureModelEngine(BaseModelEngine):
     """
-    Drop-in adapter for your local Python gesture model.
+    Template for the local Python gesture model.
 
     Current implementation returns random results for demonstration.
     Replace with your actual model loading & inference logic.

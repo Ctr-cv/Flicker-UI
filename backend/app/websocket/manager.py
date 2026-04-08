@@ -4,7 +4,7 @@ WebSocket connection manager for real-time gesture streaming.
 Handles multiple concurrent clients, receives gesture frames,
 runs inference, and broadcasts results back.
 """
-
+import asyncio
 import time
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -33,11 +33,13 @@ class ConnectionManager:
         if ws in self.active:
             self.active.remove(ws)
 
-    async def send_json(self, ws: WebSocket, data: dict) -> None:
+    async def send_json(self, ws: WebSocket, data: dict) -> bool:
         try:
             await ws.send_json(data)
+            return True
         except Exception:
             self.disconnect(ws)
+            return False
 
     async def broadcast(self, data: dict) -> None:
         for ws in list(self.active):
@@ -59,13 +61,15 @@ async def gesture_websocket(ws: WebSocket):
     connected = await manager.connect(ws)
     if not connected:
         return
+    await asyncio.sleep(0.5)
 
     # Send initial status
-    await manager.send_json(ws, {
+    success = await manager.send_json(ws, {
         "type": "status_update",
         "payload": {"connected": True, "clients": len(manager.active)},
         "timestamp": time.time() * 1000,
     })
+    if not success: return
 
     try:
         while True:
