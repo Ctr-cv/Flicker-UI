@@ -18,6 +18,7 @@ export function useCamera(fps = 30) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startCapture = useCallback(async () => {
+    console.log("Starting Capture...")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: 640, height: 480 },

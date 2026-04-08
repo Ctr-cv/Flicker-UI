@@ -4,9 +4,11 @@ import { TopBar } from "./TopBar";
 import { Footer } from "./Footer";
 import { BackgroundPlanes } from "./BackgroundPlanes";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useCamera } from "@/hooks/useCamera.ts";
 
 export function AppLayout() {
   useWebSocket();
+  useCamera();
 
   const location = useLocation();
   const page = location.pathname.split("/").filter(Boolean)[0] ?? "intro";

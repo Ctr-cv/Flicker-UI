@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import {useEffect, useRef} from "react";
 import { gestureWs } from "@/services/websocket";
 import { useGestureStore } from "@/stores/gestureStore";
 
@@ -11,7 +11,11 @@ export function useWebSocket() {
   const setConnected = useGestureStore((s) => s.setConnected);
   const pushGesture = useGestureStore((s) => s.pushGesture);
 
+  const disconnectTimeoutRef = useRef(0);
   useEffect(() => {
+    if (disconnectTimeoutRef.current) {
+      clearTimeout(disconnectTimeoutRef.current);
+    }
     gestureWs.onConnectionChange = setConnected;
     gestureWs.connect();
 
@@ -21,7 +25,9 @@ export function useWebSocket() {
 
     return () => {
       unsub();
-      gestureWs.disconnect();
+      disconnectTimeoutRef.current = setTimeout(() => {
+        gestureWs.disconnect();
+      }, 200);
     };
   }, [setConnected, pushGesture]);
 }

@@ -1,12 +1,46 @@
+import { useEffect, useRef } from "react";
 import { HeroBadge } from "@/components/ui/HeroBadge";
 import { ModuleCard } from "@/components/ui/ModuleCard";
 import { useGestureStore } from "@/stores/gestureStore";
+import { useCamera } from "@/hooks/useCamera.ts";
 
 export function MotionPage() {
   const currentGesture = useGestureStore((s) => s.currentGesture);
   const gestureHistory = useGestureStore((s) => s.gestureHistory);
   const cameraActive = useGestureStore((s) => s.cameraActive);
   const setCameraActive = useGestureStore((s) => s.setCameraActive);
+
+  // Handle camera hook logics here
+  const { streamRef } = useCamera(30);
+
+  // 2. Create a ref for the HTML video element
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // 3. Bind the camera stream to the video element
+  useEffect(() => {
+    let checkStreamInterval: number;
+
+    if (cameraActive) {
+      // Because accessing the camera is asynchronous, streamRef.current won't be
+      // instantly available. We poll briefly until it is, then attach it.
+      checkStreamInterval = setInterval(() => {
+        if (
+          videoRef.current &&
+          streamRef.current &&
+          videoRef.current.srcObject !== streamRef.current
+        ) {
+          videoRef.current.srcObject = streamRef.current;
+        }
+      }, 100);
+    } else {
+      // Clear the video source when stopped
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    }
+
+    return () => clearInterval(checkStreamInterval);
+  }, [cameraActive, streamRef]);
 
   return (
     <section className="pt-36 px-20 pb-40 max-w-7xl">
@@ -26,18 +60,22 @@ export function MotionPage() {
         <div className="col-span-12 md:col-span-7">
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/10 overflow-hidden shadow-[0_40px_60px_-15px_rgba(28,28,25,0.06)]">
             {/* Video viewport */}
-            <div className="aspect-video bg-surface-container flex items-center justify-center relative">
-              {cameraActive ? (
-                <div className="text-center space-y-2">
-                  <span className="material-symbols-outlined text-primary text-4xl animate-pulse">
-                    videocam
-                  </span>
-                  <p className="text-xs text-on-surface-variant uppercase tracking-widest">
-                    Camera Feed Active
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center space-y-4">
+            <div className="aspect-video bg-surface-container flex items-center justify-center relative overflow-hidden">
+
+              {/* The actual video element (hidden when inactive to show placeholder) */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                  cameraActive ? "opacity-100" : "opacity-0"
+                }`}
+              />
+
+              {/* Inactive Placeholder */}
+              {!cameraActive && (
+                <div className="text-center space-y-4 relative z-10">
                   <span className="material-symbols-outlined text-on-surface-variant/30 text-6xl">
                     videocam_off
                   </span>
