@@ -48,7 +48,6 @@ pnpm-debug.log*
 *.bin
 *.onnx
 *.pt
-*.pth
 *.h5
 *.tflite
 *.pb

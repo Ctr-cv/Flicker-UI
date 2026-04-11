@@ -13,6 +13,8 @@ Integration example (your model):
 
 import random
 import time
+from pathlib import Path
+
 import torch
 import logging
 
@@ -41,6 +43,7 @@ class Gestures(Enum):
     ZOOM_IN = 12
     ZOOM_OUT = 13
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 GESTURE_TIMEOUT = 0.5
 
 class GestureModelEngine(BaseModelEngine):
@@ -74,7 +77,7 @@ class GestureModelEngine(BaseModelEngine):
         device = torch.device("cpu")
 
         model = GestureModel(D, H1, num_layers, C).to(device)
-        weights_path = "gesture_model.pth"
+        weights_path = PROJECT_ROOT / "app" / "engine" / "gesture_model.pth"
         model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
         model.eval()
         self._model = model
@@ -111,16 +114,20 @@ class GestureModelEngine(BaseModelEngine):
         self._buffer[-1] = landmark_data
         # 2. Run the torch model inference on the entire queue
         # Check if update time has passed
-        if time.time() - self._last_update_time > GESTURE_TIMEOUT:
+        if self._prediction is not None and time.time() - self._last_update_time > GESTURE_TIMEOUT:
             return self._prediction, random.uniform(0.9, 1.0)   # Fake confidence for skipped gestures
+        self._last_update_time = time.time()
         data = self._buffer[::3]
+        data = data[np.newaxis, :]
 
         device = torch.device("cpu")
         input_tensor = torch.from_numpy(data).float().to(device)
         with torch.no_grad():
             prediction = self._model(input_tensor).cpu().numpy()
         if prediction is not None:
-            label, confidence = self.softmax(prediction)
+            label_int, confidence = self.softmax(prediction)
+            label = Gestures(label_int).name
+            self._prediction = label
         return label, confidence
 
     def normalize(self, landmarks: list[list[float]]):
@@ -159,5 +166,5 @@ class GestureModelEngine(BaseModelEngine):
         x_shifted = x[0] - np.max(x[0])
         e_x = np.exp(x_shifted)
         probabilities = e_x / e_x.sum()
-        conf = probabilities[predicted_class] * 100
+        conf = probabilities[predicted_class]
         return int(predicted_class), float(conf)
