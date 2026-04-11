@@ -11,7 +11,6 @@ Integration example (your model):
     label, score = self._model(landmarks)
 """
 
-import random
 import time
 from pathlib import Path
 
@@ -45,6 +44,10 @@ class Gestures(Enum):
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 GESTURE_TIMEOUT = 0.5
+BUFFER_SIZE = 60
+FRAME_STRIDE = 3
+LANDMARK_COUNT = 21
+LANDMARK_DIMENSIONS = 3
 
 class GestureModelEngine(BaseModelEngine):
     """
@@ -54,9 +57,11 @@ class GestureModelEngine(BaseModelEngine):
     def __init__(self) -> None:
         self._loaded = False
         self._model = None  # Your model instance goes here
-        self._buffer = np.zeros((60, 64), dtype=np.float32)  # Inference buffer of 60 frames
-        self._last_update_time = time.time()
+        self._buffer = np.zeros((BUFFER_SIZE, 64), dtype=np.float32)
+        self._buffered_frames = 0
+        self._last_inference_time = 0.0
         self._prediction = None
+        self._confidence = 0.0
 
     @property
     def loaded(self) -> bool:
@@ -82,12 +87,17 @@ class GestureModelEngine(BaseModelEngine):
         model.eval()
         self._model = model
         self._loaded = True
-        logging.info("Successfully loaded the gesture model.")
+        logger.info("Successfully loaded the gesture model.")
 
     def unload(self) -> None:
         self._model = None
         self._loaded = False
-        logging.info("Successfully unloaded the gesture model.")
+        self._buffer.fill(0.0)
+        self._buffered_frames = 0
+        self._last_inference_time = 0.0
+        self._prediction = None
+        self._confidence = 0.0
+        logger.info("Successfully unloaded the gesture model.")
 
     def predict(self, landmarks: list[list[float]]) -> tuple[str, float]:
         """
@@ -108,16 +118,20 @@ class GestureModelEngine(BaseModelEngine):
         if not self._loaded or not landmarks:
             return label, confidence
 
-        # 1. Pre-processing to roll into the buffer queue
         landmark_data = self.normalize(landmarks)
         self._buffer = np.roll(self._buffer, -1, axis=0)
         self._buffer[-1] = landmark_data
-        # 2. Run the torch model inference on the entire queue
-        # Check if update time has passed
-        if self._prediction is not None and time.time() - self._last_update_time > GESTURE_TIMEOUT:
-            return self._prediction, random.uniform(0.9, 1.0)   # Fake confidence for skipped gestures
-        self._last_update_time = time.time()
-        data = self._buffer[::3]
+        self._buffered_frames = min(self._buffered_frames + 1, BUFFER_SIZE)
+
+        # Wait for a fully populated history window before running the temporal model.
+        if self._buffered_frames < BUFFER_SIZE:
+            return label, confidence
+
+        now = time.time()
+        if self._prediction is not None and (now - self._last_inference_time) < GESTURE_TIMEOUT:
+            return self._prediction, self._confidence
+
+        data = self._buffer[::FRAME_STRIDE]
         data = data[np.newaxis, :]
 
         device = torch.device("cpu")
@@ -128,6 +142,8 @@ class GestureModelEngine(BaseModelEngine):
             label_int, confidence = self.softmax(prediction)
             label = Gestures(label_int).name
             self._prediction = label
+            self._confidence = confidence
+            self._last_inference_time = now
         return label, confidence
 
     def normalize(self, landmarks: list[list[float]]):
@@ -136,12 +152,22 @@ class GestureModelEngine(BaseModelEngine):
         :param X: Input 2D list data of size 3x21.
         :return: np array of shape (64,)
         """
-        data = np.array(landmarks)
+        try:
+            data = np.asarray(landmarks, dtype=np.float32)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Landmarks must be a numeric 21x3 array") from exc
+        expected_shape = (LANDMARK_COUNT, LANDMARK_DIMENSIONS)
+        if data.shape != expected_shape:
+            raise ValueError(
+                f"Expected landmark array shape {expected_shape}, got {tuple(data.shape)}"
+            )
+        if not np.isfinite(data).all():
+            raise ValueError("Landmark array contains non-finite values")
 
         x_pts = data[:, 0]
         y_pts = data[:, 1]
         z_pts = data[:, 2]
-        hand = np.array([1.0])
+        hand = np.array([1.0], dtype=np.float32)
 
         # Wrist is index 0 of each block, MCP is index 9
         w_x, w_y, w_z = x_pts[0], y_pts[0], z_pts[0]
@@ -159,7 +185,7 @@ class GestureModelEngine(BaseModelEngine):
         y_pts /= dist
         z_pts /= dist
 
-        return np.concatenate([x_pts, y_pts, z_pts, hand], axis=-1)
+        return np.concatenate([x_pts, y_pts, z_pts, hand], axis=-1).astype(np.float32, copy=False)
 
     def softmax(self, x):
         predicted_class = np.argmax(x, axis=1)[0]
