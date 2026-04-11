@@ -43,12 +43,9 @@ class ConnectionManager:
             await ws.send_json(data)
             return True
         except Exception:
+            logger.exception("Failed to send websocket message")
             self.disconnect(ws)
             return False
-
-    async def broadcast(self, data: dict) -> None:
-        for ws in list(self.active):
-            await self.send_json(ws, data)
 
 
 manager = ConnectionManager(max_connections=settings.ws_max_connections)

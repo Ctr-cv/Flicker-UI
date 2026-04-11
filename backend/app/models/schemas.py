@@ -1,7 +1,9 @@
 """Pydantic schemas shared across routes and services."""
 
 from __future__ import annotations
-from pydantic import BaseModel
+from math import isfinite
+
+from pydantic import BaseModel, field_validator
 
 
 # ── API Responses ──────────────────────────────────────────
@@ -39,6 +41,20 @@ class SystemStatus(BaseModel):
 
 class GestureFrame(BaseModel):
     landmarks: list[list[float]]
+
+    @field_validator("landmarks")
+    @classmethod
+    def validate_landmarks(cls, landmarks: list[list[float]]) -> list[list[float]]:
+        if len(landmarks) != 21:
+            raise ValueError("Expected exactly 21 landmarks")
+
+        for point in landmarks:
+            if len(point) != 3:
+                raise ValueError("Each landmark must contain exactly 3 coordinates")
+            if not all(isfinite(value) for value in point):
+                raise ValueError("Landmark coordinates must be finite numbers")
+
+        return landmarks
 
 
 class GestureResult(BaseModel):

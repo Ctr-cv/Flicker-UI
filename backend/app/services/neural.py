@@ -45,7 +45,7 @@ class NeuralService:
             return ("none", 0.0)
         prev = time.time()
         label, confidence = self._engine.predict(landmarks)
-        self.last_latency = time.time() - prev  # Will be measured properly per-call
+        self.last_latency = (time.time() - prev) * 1000
         self.last_fidelity = confidence
         return label, confidence
 

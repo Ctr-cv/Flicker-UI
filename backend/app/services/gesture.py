@@ -6,12 +6,10 @@ and returns classified gesture results.
 """
 
 import time
-import logging
 from app.models.schemas import GestureResult
 from app.services.neural import neural_service
 from config import settings
 
-logger = logging.getLogger("flicker.backend")
 
 class GestureService:
     """Stateless service that wraps model inference for gesture frames."""
