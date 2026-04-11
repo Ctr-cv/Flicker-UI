@@ -4,14 +4,19 @@ WebSocket connection manager for real-time gesture streaming.
 Handles multiple concurrent clients, receives gesture frames,
 runs inference, and broadcasts results back.
 """
-import asyncio
-import time
 import json
+import logging
+import time
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
+
+from app.models.schemas import GestureFrame
 from app.services.gesture import gesture_service
 from config import settings
 
 ws_router = APIRouter()
+logger = logging.getLogger("flicker.websocket")
 
 
 class ConnectionManager:
@@ -61,7 +66,6 @@ async def gesture_websocket(ws: WebSocket):
     connected = await manager.connect(ws)
     if not connected:
         return
-    await asyncio.sleep(0.5)
 
     # Send initial status
     success = await manager.send_json(ws, {
@@ -84,11 +88,38 @@ async def gesture_websocket(ws: WebSocket):
                 })
                 continue
 
+            if not isinstance(msg, dict):
+                await manager.send_json(ws, {
+                    "type": "error",
+                    "payload": {"message": "Message must be a JSON object"},
+                    "timestamp": time.time() * 1000,
+                })
+                continue
+
             msg_type = msg.get("type")
 
             if msg_type == "gesture_frame":
-                landmarks = msg.get("payload", {}).get("landmarks", [])
-                result = gesture_service.predict(landmarks)
+                try:
+                    frame = GestureFrame.model_validate(msg.get("payload"))
+                except ValidationError:
+                    await manager.send_json(ws, {
+                        "type": "error",
+                        "payload": {"message": "Invalid gesture frame payload"},
+                        "timestamp": time.time() * 1000,
+                    })
+                    continue
+
+                try:
+                    result = gesture_service.predict(frame.landmarks)
+                except Exception:
+                    logger.exception("Gesture inference failed")
+                    await manager.send_json(ws, {
+                        "type": "error",
+                        "payload": {"message": "Gesture inference failed"},
+                        "timestamp": time.time() * 1000,
+                    })
+                    continue
+
                 if result:
                     await manager.send_json(ws, {
                         "type": "gesture_result",
@@ -100,6 +131,12 @@ async def gesture_websocket(ws: WebSocket):
                 await manager.send_json(ws, {
                     "type": "pong",
                     "payload": None,
+                    "timestamp": time.time() * 1000,
+                })
+            else:
+                await manager.send_json(ws, {
+                    "type": "error",
+                    "payload": {"message": f"Unsupported message type: {msg_type!r}"},
                     "timestamp": time.time() * 1000,
                 })
 
