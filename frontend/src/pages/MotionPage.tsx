@@ -11,7 +11,7 @@ export function MotionPage() {
   const setCameraActive = useGestureStore((s) => s.setCameraActive);
 
   // Handle camera hook logics here
-  const { streamRef } = useCamera(30);
+  const { streamRef } = useCamera();
 
   // 2. Create a ref for the HTML video element
   const videoRef = useRef<HTMLVideoElement>(null);

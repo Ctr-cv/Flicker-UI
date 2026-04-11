@@ -13,7 +13,11 @@ import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
  * placeholder — the real pipeline would extract hand landmarks
  * client-side and send only the landmark array.
  */
-export function useCamera(fps = 30) {
+
+const TARGET_FPS = 30;
+
+
+export function useCamera() {
   const cameraActive = useGestureStore((s) => s.cameraActive);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -33,14 +37,17 @@ export function useCamera(fps = 30) {
       );
       const landmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
-          modelAssetPath: "/hand_landmarker.task",
+          modelAssetPath: "/models/hand_landmarker.task",
           delegate: "GPU",
         },
         runningMode: "VIDEO",
         numHands: 1,
       });
 
-      if (isMounted) landmarkerRef.current = landmarker
+      if (isMounted){
+        landmarkerRef.current = landmarker
+        console.log("Mediapipe landmarker loaded successfully!")
+      }
     };
 
     initMediaPipe()
@@ -56,37 +63,41 @@ export function useCamera(fps = 30) {
   // Helper to process frames
   const processFrame = useCallback(() => {
     // needs both video and landmarker setup to process
-    if (!videoRef.current || !landmarkerRef.current) return
-    // Match the exact fps using lastVideoTimeRef and lastProcessTimeRef
-    const now = performance.now()
-    const timePast = now - lastProcessTimeRef.current
-    if (timePast > (1000 / fps)){
-      // check if video frame is updated
-      if (videoRef.current.currentTime !== lastVideoTimeRef.current){
-        lastVideoTimeRef.current = videoRef.current.currentTime;
-        lastProcessTimeRef.current = now
+    try {
+      if (!videoRef.current || !landmarkerRef.current) return
+      // Match the exact fps using lastVideoTimeRef and lastProcessTimeRef
+      const now = performance.now()
+      const timePast = now - lastProcessTimeRef.current
+      if (timePast > (1000 / TARGET_FPS)) {
+        // check if video frame is updated
+        if (videoRef.current.currentTime !== lastVideoTimeRef.current) {
+          lastVideoTimeRef.current = videoRef.current.currentTime;
+          lastProcessTimeRef.current = now
 
-        const results = landmarkerRef.current.detectForVideo(videoRef.current, now);
-        if (results.landmarks && results.landmarks.length > 0){
-          let confidence = -1
-          if (results.handedness) confidence = results.handedness[0][0].score
-          if (confidence < 0.9) return
+          const results = landmarkerRef.current.detectForVideo(videoRef.current, now);
+          if (results.landmarks && results.landmarks.length > 0) {
+            let confidence = -1
+            if (results.handedness) confidence = results.handedness[0][0].score
+            if (confidence < 0.9) return
 
-          // Extract all 21 landmarks for the first detected hand
-          const handLandmarks = results.landmarks[0];
-          const all_landmarks: number[][] = handLandmarks.map((landmark) => [
-            landmark.x,
-            landmark.y,
-            landmark.z,
-          ]);
-          gestureWs.sendFrame(all_landmarks);
-        } else {
-          gestureWs.sendFrame([]);
+            // Extract all 21 landmarks for the first detected hand
+            const handLandmarks = results.landmarks[0];
+            const all_landmarks: number[][] = handLandmarks.map((landmark) => [
+              landmark.x,
+              landmark.y,
+              landmark.z,
+            ]);
+            console.log(`Landmark Array length: ${all_landmarks.length}.`)
+            gestureWs.sendFrame(all_landmarks);
+          } else {
+            gestureWs.sendFrame([]);
+          }
         }
       }
+    } finally {
+      requestRef.current = requestAnimationFrame(processFrame);
     }
-    requestRef.current = requestAnimationFrame(processFrame);
-  }, [fps])
+  }, [])
 
   const startCapture = useCallback(async () => {
     console.log("Starting Capture...")
