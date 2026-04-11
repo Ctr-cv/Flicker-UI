@@ -22,6 +22,7 @@ export class GestureWebSocket {
   private maxReconnect = 10;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _connected = false;
+  private shouldReconnect = true;
 
   /** Fires when connection state changes. */
   onConnectionChange?: (connected: boolean) => void;
@@ -35,7 +36,17 @@ export class GestureWebSocket {
   }
 
   connect() {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    ) {
+      return;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.shouldReconnect = true;
 
     try {
       this.ws = new WebSocket(this.url);
@@ -56,9 +67,12 @@ export class GestureWebSocket {
       };
 
       this.ws.onclose = () => {
+        this.ws = null;
         this._connected = false;
         this.onConnectionChange?.(false);
-        this.scheduleReconnect();
+        if (this.shouldReconnect) {
+          this.scheduleReconnect();
+        }
       };
 
       this.ws.onerror = () => {
@@ -70,9 +84,14 @@ export class GestureWebSocket {
   }
 
   disconnect() {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.reconnectAttempts = this.maxReconnect; // prevent reconnection
     this.ws?.close();
+    this.ws = null;
     this._connected = false;
     this.onConnectionChange?.(false);
   }
@@ -116,11 +135,13 @@ export class GestureWebSocket {
 
   private scheduleReconnect() {
     if (this.reconnectAttempts >= this.maxReconnect) return;
+    if (this.reconnectTimer) return;
 
     const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30_000);
     this.reconnectAttempts++;
 
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       this.connect();
     }, delay);
   }
