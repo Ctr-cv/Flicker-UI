@@ -5,6 +5,7 @@ Manages the lifecycle of the gesture model and exposes an inference
 method. Designed to be swappable — replace the engine adapter to
 integrate a different model without touching the rest of the backend.
 """
+import time
 
 from app.engine.base import BaseModelEngine
 from app.engine.gesture_model import GestureModelEngine
@@ -42,9 +43,9 @@ class NeuralService:
         """
         if self._engine is None:
             return ("none", 0.0)
-
+        prev = time.time()
         label, confidence = self._engine.predict(landmarks)
-        self.last_latency = 0.002  # Will be measured properly per-call
+        self.last_latency = time.time() - prev  # Will be measured properly per-call
         self.last_fidelity = confidence
         return label, confidence
 
