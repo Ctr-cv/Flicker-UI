@@ -2,6 +2,14 @@ import type { WSMessage, GestureResult } from "@/types";
 
 type MessageHandler = (msg: WSMessage) => void;
 
+function getDefaultGestureWsUrl() {
+  if (typeof window === "undefined") {
+    return "ws://localhost/ws/gesture";
+  }
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${window.location.host}/ws/gesture`;
+}
+
 /**
  * Persistent WebSocket client for real-time gesture streaming.
  * Handles reconnection with exponential backoff.
@@ -18,7 +26,7 @@ export class GestureWebSocket {
   /** Fires when connection state changes. */
   onConnectionChange?: (connected: boolean) => void;
 
-  constructor(url = `ws://${window.location.host}/ws/gesture`) {
+  constructor(url = getDefaultGestureWsUrl()) {
     this.url = url;
   }
 
