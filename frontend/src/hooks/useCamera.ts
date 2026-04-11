@@ -15,10 +15,13 @@ import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
  */
 
 const TARGET_FPS = 30;
+const DEBUG_CAMERA = false;
 
 
 export function useCamera() {
   const cameraActive = useGestureStore((s) => s.cameraActive);
+  const setCameraError = useGestureStore((s) => s.setCameraError);
+  const clearCameraError = useGestureStore((s) => s.clearCameraError);
   const streamRef = useRef<MediaStream | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -28,26 +31,37 @@ export function useCamera() {
   const requestRef = useRef<number | null>(null);
   const lastVideoTimeRef = useRef<number>(-1);
   const lastProcessTimeRef = useRef<number>(0);
+  const detectErrorReportedRef = useRef(false);
 
   // Mount the mediapipe function exactly once
   useEffect(() => {
     let isMounted = true;
     const initMediaPipe = async () => {
-      const vision = await FilesetResolver.forVisionTasks(
-        "/wasm"
-      );
-      const landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "/models/hand_landmarker.task",
-          delegate: "GPU",
-        },
-        runningMode: "VIDEO",
-        numHands: 1,
-      });
+      try {
+        const vision = await FilesetResolver.forVisionTasks("/wasm");
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "/models/hand_landmarker.task",
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numHands: 1,
+        });
 
-      if (isMounted){
-        landmarkerRef.current = landmarker
-        console.log("Mediapipe landmarker loaded successfully!")
+        if (isMounted) {
+          landmarkerRef.current = landmarker;
+          clearCameraError();
+          if (DEBUG_CAMERA) {
+            console.info("[useCamera] Mediapipe landmarker loaded.");
+          }
+        }
+      } catch (err) {
+        console.error("[useCamera] Failed to initialize MediaPipe:", err);
+        if (isMounted) {
+          setCameraError(
+            "Failed to load hand tracking model. Verify /wasm and /models assets."
+          );
+        }
       }
     };
 
@@ -59,7 +73,7 @@ export function useCamera() {
         landmarkerRef.current.close();
       }
     }
-  }, [])
+  }, [clearCameraError, setCameraError])
 
   // Helper to process frames
   const processFrame = useCallback(() => {
@@ -88,20 +102,32 @@ export function useCamera() {
               landmark.y,
               landmark.z,
             ]);
-            console.log(`Landmark Array length: ${all_landmarks.length}.`)
+            if (DEBUG_CAMERA) {
+              console.debug(`[useCamera] Sending ${all_landmarks.length} landmarks.`);
+            }
             gestureWs.sendFrame(all_landmarks);
           } else {
             gestureWs.sendFrame([]);
           }
         }
       }
+      detectErrorReportedRef.current = false;
+    } catch (err) {
+      if (!detectErrorReportedRef.current) {
+        console.error("[useCamera] Landmark detection loop failed:", err);
+        detectErrorReportedRef.current = true;
+      }
+      setCameraError("Hand tracking failed during capture.");
     } finally {
       requestRef.current = requestAnimationFrame(processFrame);
     }
-  }, [])
+  }, [setCameraError])
 
   const startCapture = useCallback(async () => {
-    console.log("Starting Capture...")
+    clearCameraError();
+    if (DEBUG_CAMERA) {
+      console.info("[useCamera] Starting camera capture.");
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: 640, height: 480 },
@@ -119,14 +145,18 @@ export function useCamera() {
       videoRef.current.srcObject = stream;
 
       videoRef.current.onloadeddata = () =>{
-        videoRef.current?.play();
+        videoRef.current?.play().catch((err) => {
+          console.error("[useCamera] Failed to play internal video stream:", err);
+          setCameraError("Camera stream started but preview playback failed.");
+        });
         processFrame();
       };
 
     } catch (err) {
       console.error("[useCamera] Failed to access camera:", err);
+      setCameraError("Failed to access camera. Check browser permissions.");
     }
-  }, [processFrame]);
+  }, [clearCameraError, processFrame, setCameraError]);
 
   const stopCapture = useCallback(() => {
     if (requestRef.current){

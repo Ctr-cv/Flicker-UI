@@ -23,6 +23,9 @@ interface GestureState {
   /* ── Camera ─────────────────────────────────────────── */
   cameraActive: boolean;
   setCameraActive: (v: boolean) => void;
+  cameraError: string | null;
+  setCameraError: (message: string) => void;
+  clearCameraError: () => void;
 }
 
 const MAX_HISTORY = 200;
@@ -48,4 +51,7 @@ export const useGestureStore = create<GestureState>((set) => ({
 
   cameraActive: false,
   setCameraActive: (v) => set({ cameraActive: v }),
+  cameraError: null,
+  setCameraError: (message) => set({ cameraError: message }),
+  clearCameraError: () => set({ cameraError: null }),
 }));

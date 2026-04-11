@@ -7,6 +7,7 @@ export function MotionPage() {
   const currentGesture = useGestureStore((s) => s.currentGesture);
   const gestureHistory = useGestureStore((s) => s.gestureHistory);
   const cameraActive = useGestureStore((s) => s.cameraActive);
+  const cameraError = useGestureStore((s) => s.cameraError);
   const setCameraActive = useGestureStore((s) => s.setCameraActive);
 
   // Handle camera hook logics here
@@ -80,6 +81,9 @@ export function MotionPage() {
                 {cameraActive ? "Stop Capture" : "Start Capture"}
               </button>
             </div>
+            {cameraError && (
+              <div className="px-8 pb-5 text-xs text-error">{cameraError}</div>
+            )}
           </div>
         </div>
 
