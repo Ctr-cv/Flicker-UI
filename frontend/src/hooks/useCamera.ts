@@ -20,6 +20,7 @@ const TARGET_FPS = 30;
 export function useCamera() {
   const cameraActive = useGestureStore((s) => s.cameraActive);
   const streamRef = useRef<MediaStream | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // MediaPipe & Processing Refs
   const landmarkerRef = useRef<HandLandmarker | null>(null);
@@ -106,6 +107,9 @@ export function useCamera() {
         video: { facingMode: "user", width: 640, height: 480 },
       });
       streamRef.current = stream;
+      if (previewVideoRef.current) {
+        previewVideoRef.current.srcObject = stream;
+      }
       if (!videoRef.current){
         videoRef.current = document.createElement("video");
         videoRef.current.playsInline = true;
@@ -137,6 +141,16 @@ export function useCamera() {
       videoRef.current.pause()
       videoRef.current.srcObject = null;
     }
+    if (previewVideoRef.current) {
+      previewVideoRef.current.pause();
+      previewVideoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const bindPreviewVideoElement = useCallback((videoElement: HTMLVideoElement | null) => {
+    previewVideoRef.current = videoElement;
+    if (!videoElement) return;
+    videoElement.srcObject = streamRef.current;
   }, []);
 
   useEffect(() => {
@@ -148,5 +162,5 @@ export function useCamera() {
     return stopCapture;
   }, [cameraActive, startCapture, stopCapture]);
 
-  return { streamRef };
+  return { streamRef, bindPreviewVideoElement };
 }

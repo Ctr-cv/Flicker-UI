@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { HeroBadge } from "@/components/ui/HeroBadge";
 import { ModuleCard } from "@/components/ui/ModuleCard";
 import { useGestureStore } from "@/stores/gestureStore";
@@ -11,36 +10,7 @@ export function MotionPage() {
   const setCameraActive = useGestureStore((s) => s.setCameraActive);
 
   // Handle camera hook logics here
-  const { streamRef } = useCamera();
-
-  // 2. Create a ref for the HTML video element
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  // 3. Bind the camera stream to the video element
-  useEffect(() => {
-    let checkStreamInterval: number;
-
-    if (cameraActive) {
-      // Because accessing the camera is asynchronous, streamRef.current won't be
-      // instantly available. We poll briefly until it is, then attach it.
-      checkStreamInterval = setInterval(() => {
-        if (
-          videoRef.current &&
-          streamRef.current &&
-          videoRef.current.srcObject !== streamRef.current
-        ) {
-          videoRef.current.srcObject = streamRef.current;
-        }
-      }, 100);
-    } else {
-      // Clear the video source when stopped
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-    }
-
-    return () => clearInterval(checkStreamInterval);
-  }, [cameraActive, streamRef]);
+  const { bindPreviewVideoElement } = useCamera();
 
   return (
     <section className="pt-36 px-20 pb-40 max-w-7xl">
@@ -64,7 +34,7 @@ export function MotionPage() {
 
               {/* The actual video element (hidden when inactive to show placeholder) */}
               <video
-                ref={videoRef}
+                ref={bindPreviewVideoElement}
                 autoPlay
                 playsInline
                 muted
