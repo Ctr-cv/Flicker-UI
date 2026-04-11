@@ -6,10 +6,12 @@ and returns classified gesture results.
 """
 
 import time
+import logging
 from app.models.schemas import GestureResult
 from app.services.neural import neural_service
 from config import settings
 
+logger = logging.getLogger("flicker.backend")
 
 class GestureService:
     """Stateless service that wraps model inference for gesture frames."""
@@ -22,11 +24,9 @@ class GestureService:
         """
         if not neural_service.model_loaded:
             return None
-
         start = time.perf_counter()
         label, confidence = neural_service.infer(landmarks)
         elapsed_ms = (time.perf_counter() - start) * 1000
-
         if confidence < settings.model_confidence_threshold:
             return None
 
@@ -36,6 +36,5 @@ class GestureService:
             latency=elapsed_ms,
             timestamp=time.time() * 1000,
         )
-
 
 gesture_service = GestureService()

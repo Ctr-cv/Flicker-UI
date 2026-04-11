@@ -91,6 +91,7 @@ export function useCamera() {
 
           const results = landmarkerRef.current.detectForVideo(videoRef.current, now);
           if (results.landmarks && results.landmarks.length > 0) {
+            console.log(results.landmarks)
             let confidence = -1
             if (results.handedness) confidence = results.handedness[0][0].score
             if (confidence < 0.9) return

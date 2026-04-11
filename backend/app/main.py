@@ -9,6 +9,7 @@ Provides:
 from contextlib import asynccontextmanager
 
 import uvicorn
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,6 +34,8 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan,
 )
+
+logging.basicConfig(level=logging.INFO)
 
 # ── CORS (allow Vite dev server) ──────────────────────────
 app.add_middleware(
