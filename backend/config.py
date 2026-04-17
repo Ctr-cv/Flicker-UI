@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Central configuration consumed by the FastAPI app."""
 
-    app_name: str = "Gestalt Engine"
+    app_name: str = "Flicker Engine"
     app_version: str = "2.0.0"
     debug: bool = False
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ws_max_connections: int = 50
 
     class Config:
-        env_prefix = "GESTALT_"
+        env_prefix = "FLICKER_"
         env_file = ".env"
 
 

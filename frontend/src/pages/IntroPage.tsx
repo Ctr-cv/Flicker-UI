@@ -13,7 +13,7 @@ export function IntroPage() {
         <div className="space-y-4">
           <HeroBadge label="Biological Interface v2" />
           <h1 className="font-headline text-[10vw] font-extrabold tracking-tighter leading-none text-on-surface">
-            GESTALT
+            FLICKER
             <br />
             ENGINE
           </h1>

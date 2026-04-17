@@ -193,24 +193,24 @@ All settings are environment-driven via `pydantic-settings`. Set them directly o
 
 ```env
 # backend/.env
-GESTALT_APP_NAME=Gestalt Engine
-GESTALT_APP_VERSION=2.0.0
-GESTALT_DEBUG=true
-GESTALT_HOST=0.0.0.0
-GESTALT_PORT=8000
-GESTALT_MODEL_CONFIDENCE_THRESHOLD=0.6
-GESTALT_WS_MAX_CONNECTIONS=50
+FLICKER_APP_NAME=FLICKER Engine
+FLICKER_APP_VERSION=2.0.0
+FLICKER_DEBUG=true
+FLICKER_HOST=0.0.0.0
+FLICKER_PORT=8000
+FLICKER_MODEL_CONFIDENCE_THRESHOLD=0.6
+FLICKER_WS_MAX_CONNECTIONS=50
 ```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GESTALT_APP_NAME` | `Gestalt Engine` | Application display name |
-| `GESTALT_APP_VERSION` | `2.0.0` | Version string shown in the UI |
-| `GESTALT_DEBUG` | `false` | Enable debug logging |
-| `GESTALT_HOST` | `0.0.0.0` | Bind address |
-| `GESTALT_PORT` | `8000` | Server port |
-| `GESTALT_MODEL_CONFIDENCE_THRESHOLD` | `0.6` | Minimum confidence to report a gesture |
-| `GESTALT_WS_MAX_CONNECTIONS` | `50` | Max concurrent WebSocket clients |
+| `FLICKER_APP_NAME` | `FLICKER Engine` | Application display name |
+| `FLICKER_APP_VERSION` | `2.0.0` | Version string shown in the UI |
+| `FLICKER_DEBUG` | `false` | Enable debug logging |
+| `FLICKER_HOST` | `0.0.0.0` | Bind address |
+| `FLICKER_PORT` | `8000` | Server port |
+| `FLICKER_MODEL_CONFIDENCE_THRESHOLD` | `0.6` | Minimum confidence to report a gesture |
+| `FLICKER_WS_MAX_CONNECTIONS` | `50` | Max concurrent WebSocket clients |
 
 ## API Reference
 

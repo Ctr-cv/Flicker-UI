@@ -3,7 +3,7 @@ export function Footer() {
     <footer className="relative z-10 px-20 py-12 border-t border-outline-variant/10 flex justify-between items-center bg-surface-container-low/30 backdrop-blur-md">
       <div className="flex gap-12">
         <span className="font-label text-[10px] tracking-widest uppercase text-outline">
-          &copy; {new Date().getFullYear()} Gestalt Systems
+          &copy; {new Date().getFullYear()} Flicker Systems
         </span>
         <span className="font-label text-[10px] tracking-widest uppercase text-outline">
           Berlin // Tokyo
