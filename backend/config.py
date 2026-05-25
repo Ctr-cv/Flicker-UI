@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     model_confidence_threshold: float = Field(
         default=0.95, ge=0.0, le=1.0, description="Minimum confidence to report a gesture"
     )
+    speech_confidence_threshold: float = Field(
+        default=0.75, ge=0.0, le=1.0, description="Minimum confidence to report a spoken word"
+    )
 
     # WebSocket
     ws_max_connections: int = 50

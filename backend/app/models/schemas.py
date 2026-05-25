@@ -64,6 +64,34 @@ class GestureResult(BaseModel):
     timestamp: float
 
 
+# ── Speech ──────────────────────────────────────────────────
+
+
+class SpeechFrame(BaseModel):
+    lip_landmarks: list[list[float]]
+
+    @field_validator("lip_landmarks")
+    @classmethod
+    def validate_lip_landmarks(cls, landmarks: list[list[float]]) -> list[list[float]]:
+        if len(landmarks) != 40:
+            raise ValueError("Expected exactly 40 lip landmarks")
+
+        for point in landmarks:
+            if len(point) != 3:
+                raise ValueError("Each lip landmark must contain exactly 3 coordinates")
+            if not all(isfinite(value) for value in point):
+                raise ValueError("Lip landmark coordinates must be finite numbers")
+
+        return landmarks
+
+
+class SpeechResult(BaseModel):
+    word: str
+    confidence: float
+    latency: float  # ms
+    timestamp: float
+
+
 # ── WebSocket Messages ─────────────────────────────────────
 
 

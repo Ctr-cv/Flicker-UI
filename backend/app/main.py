@@ -3,7 +3,7 @@ Gestalt Engine — FastAPI entry point.
 
 Provides:
   - REST endpoints for configuration and status  (/api/*)
-  - WebSocket endpoint for real-time gesture streaming  (/ws/gesture)
+  - WebSocket endpoints for real-time gesture and speech streaming  (/ws/gesture, /ws/speech)
 """
 
 from contextlib import asynccontextmanager
@@ -17,6 +17,7 @@ from config import settings
 from app.routes import health, status, model
 from app.websocket.manager import ws_router
 from app.services.neural import neural_service
+from app.engine.speech_model import SpeechModelEngine
 
 
 @asynccontextmanager
@@ -24,8 +25,11 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
     # ── Startup ───────────────────────────────────────────
     neural_service.load_model()
+    neural_service.register_engine("speech", SpeechModelEngine())
+    neural_service.load_engine("speech")
     yield
     # ── Shutdown ──────────────────────────────────────────
+    neural_service.unload_engine("speech")
     neural_service.unload_model()
 
 

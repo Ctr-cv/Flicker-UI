@@ -1,0 +1,118 @@
+=== Step 1: Refactor NeuralService to Multi-Modality ===
+Date: 2026-05-25
+
+File modified:
+  backend/app/services/neural.py  (53 → 106 lines)
+
+What changed:
+  - NeuralService._engine (single BaseModelEngine) → _engines (dict[str, BaseModelEngine])
+  - NeuralService.last_latency (simple float) → _latency dict + @property delegate
+  - NeuralService.last_fidelity (simple float) → _fidelity dict + @property delegate
+
+New multi-modality API:
+  register_engine(modality, engine)   — register engine without loading
+  load_engine(modality)               — load weights for a modality
+  unload_engine(modality)             — unload and release resources
+  is_loaded(modality)                 — check if engine is registered + loaded
+  get_latency(modality)               — per-modality latency (ms)
+  get_fidelity(modality)              — per-modality confidence
+  all_modalities (property)           — list of registered modality names
+  infer(data, modality="gesture")     — run inference on specified engine
+
+Backward-compat preserved (delegate to "gesture"):
+  model_loaded (property)            → is_loaded("gesture")
+  last_latency (property)            → _latency["gesture"]
+  last_fidelity (property)           → _fidelity["gesture"]
+  load_model()                       → auto-registers + loads GestureModelEngine
+  unload_model()                     → unload_engine("gesture")
+  infer(landmarks) [old signature]   → infer(data, "gesture")
+
+Callers verified (no changes needed in):
+  backend/app/services/gesture.py   — .model_loaded, .infer(landmarks)
+  backend/app/routes/status.py      — .model_loaded, .last_latency, .last_fidelity
+  backend/app/routes/model.py       — .load_model(), .unload_model()
+  backend/app/main.py               — .load_model(), .unload_model()
+
+Tests passed:
+  - Import: OK
+  - load_model() → model_loaded: True, all_modalities: ['gesture']
+  - is_loaded("gesture"): True, is_loaded("speech"): False
+  - infer(data) [default]: OK, infer(data, "gesture"): OK
+  - last_latency/last_fidelity properties: OK
+  - get_latency("gesture") / get_fidelity("gesture"): OK
+
+
+=== Steps 2-3: Speech Model Engine + Speech Service ===
+=== (+ partial Step 4: Speech schemas, partial Step 6: config) ===
+Date: 2026-05-25
+
+Files created:
+  backend/app/engine/speech_model.py   (170 lines)  — SpeechModelEngine
+  backend/app/services/speech.py        (42 lines)  — SpeechService
+
+Files modified:
+  backend/app/models/schemas.py  (+27 lines)  — SpeechFrame, SpeechResult
+  backend/config.py              (+3 lines)   — speech_confidence_threshold
+
+SpeechModelEngine structure:
+  - SpeechLabels enum: SILENCE, YES, NO, START, STOP, NEXT, PREVIOUS, SELECT, HELP
+  - Same buffer pattern as GestureModelEngine: 60 frames, stride 3, 0.5s timeout
+  - Feature dim: LIP_COUNT(40) × 3 + 1 face_flag = 121
+  - normalize(): center-on-mean, max-distance scaling
+  - softmax(): same helper as gesture
+  - predict(): placeholder returns SILENCE / 0.0 until model weights integrated
+  - load(): placeholder sets _loaded=True (no .pth file yet)
+
+SpeechService structure:
+  - Mirrors GestureService exactly
+  - predict(lip_landmarks) → SpeechResult | None
+  - Uses neural_service.is_loaded("speech") + infer(data, "speech")
+  - Threshold check via settings.speech_confidence_threshold (default 0.75)
+
+Pydantic schemas added:
+  - SpeechFrame(lip_landmarks): validated — at least 1 point, each 3 coords, all finite
+  - SpeechResult(word, confidence, latency, timestamp)
+
+Config added:
+  - speech_confidence_threshold: float = 0.75  (env: FLICKER_SPEECH_CONFIDENCE_THRESHOLD)
+
+Tests passed:
+  - All imports: speech_model, schemas (SpeechFrame/Result), speech service → OK
+  - register_engine("speech") + load_engine("speech") → is_loaded: True
+  - neural_service.infer(fake_lip_landmarks, "speech") → ("SILENCE", 0.0)
+  - speech_service.predict(fake_lip_landmarks) → None (conf < 0.75 threshold)
+  - neural_service.infer(hand_landmarks, "gesture") → still works
+  - SpeechFrame validation: rejects empty, rejects wrong dims, accepts valid
+  - SpeechResult model_dump: correct JSON shape
+
+
+=== Bug Fixes (post-audit) ===
+Date: 2026-05-25
+
+Fix 1 — speech_model.py normalize() row count validation:
+  - Added data.shape != expected_shape check (mirrors gesture_model.py)
+  - Previously only checked column count, allowing wrong row count to pass
+  - Now raises clear ValueError: "Expected lip landmark shape (40, 3), got (N, 3)"
+
+Fix 2 — main.py lifespan register + load speech engine:
+  - Added: from app.engine.speech_model import SpeechModelEngine
+  - Startup: neural_service.register_engine("speech", SpeechModelEngine())
+  - Startup: neural_service.load_engine("speech")
+  - Shutdown: neural_service.unload_engine("speech")
+  - Both engines now auto-load on startup
+
+Fix 3 — main.py docstring:
+  - Updated to mention /ws/speech alongside /ws/gesture
+
+Fix 4 — schemas.py SpeechFrame enforce exact count:
+  - Changed: "Expected at least 1 lip landmark" → "Expected exactly 40 lip landmarks"
+  - Matches GestureFrame pattern (enforces 21 hand landmarks)
+  - Schema-level catch before data reaches engine
+
+Tests passed:
+  - SpeechFrame(40 landmarks): accepted
+  - SpeechFrame(30 landmarks): ValueError "Expected exactly 40 lip landmarks"
+  - normalize(30 landmarks): ValueError "Expected lip landmark shape (40, 3), got (30, 3)"
+  - Full lifespan: gesture loaded=True, speech loaded=True, all_modalities=['gesture','speech']
+  - Both infer calls work independently
+  - Shutdown: both engines unloaded, is_loaded returns False for both

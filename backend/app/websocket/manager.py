@@ -1,7 +1,7 @@
 """
-WebSocket connection manager for real-time gesture streaming.
+WebSocket connection manager for real-time gesture and speech streaming.
 
-Handles multiple concurrent clients, receives gesture frames,
+Handles multiple concurrent clients, receives gesture and speech frames,
 runs inference, and broadcasts results back.
 """
 import json
@@ -11,8 +11,9 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
-from app.models.schemas import GestureFrame
+from app.models.schemas import GestureFrame, SpeechFrame
 from app.services.gesture import gesture_service
+from app.services.speech import speech_service
 from config import settings
 
 ws_router = APIRouter()
@@ -120,6 +121,98 @@ async def gesture_websocket(ws: WebSocket):
                 if result:
                     await manager.send_json(ws, {
                         "type": "gesture_result",
+                        "payload": result.model_dump(),
+                        "timestamp": time.time() * 1000,
+                    })
+
+            elif msg_type == "ping":
+                await manager.send_json(ws, {
+                    "type": "pong",
+                    "payload": None,
+                    "timestamp": time.time() * 1000,
+                })
+            else:
+                await manager.send_json(ws, {
+                    "type": "error",
+                    "payload": {"message": f"Unsupported message type: {msg_type!r}"},
+                    "timestamp": time.time() * 1000,
+                })
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        manager.disconnect(ws)
+
+
+@ws_router.websocket("/ws/speech")
+async def speech_websocket(ws: WebSocket):
+    """
+    Silent-speech streaming endpoint.
+
+    Protocol:
+      Client sends:  { "type": "speech_frame", "payload": { "lip_landmarks": [...] }, "timestamp": ... }
+      Server replies: { "type": "speech_result", "payload": { "word": ..., "confidence": ..., "latency": ..., "timestamp": ... }, "timestamp": ... }
+    """
+    connected = await manager.connect(ws)
+    if not connected:
+        return
+
+    success = await manager.send_json(ws, {
+        "type": "status_update",
+        "payload": {"connected": True, "clients": len(manager.active)},
+        "timestamp": time.time() * 1000,
+    })
+    if not success:
+        return
+
+    try:
+        while True:
+            raw = await ws.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await manager.send_json(ws, {
+                    "type": "error",
+                    "payload": {"message": "Invalid JSON"},
+                    "timestamp": time.time() * 1000,
+                })
+                continue
+
+            if not isinstance(msg, dict):
+                await manager.send_json(ws, {
+                    "type": "error",
+                    "payload": {"message": "Message must be a JSON object"},
+                    "timestamp": time.time() * 1000,
+                })
+                continue
+
+            msg_type = msg.get("type")
+
+            if msg_type == "speech_frame":
+                try:
+                    frame = SpeechFrame.model_validate(msg.get("payload"))
+                except ValidationError:
+                    await manager.send_json(ws, {
+                        "type": "error",
+                        "payload": {"message": "Invalid speech frame payload"},
+                        "timestamp": time.time() * 1000,
+                    })
+                    continue
+
+                try:
+                    result = speech_service.predict(frame.lip_landmarks)
+                except Exception:
+                    logger.exception("Speech inference failed")
+                    await manager.send_json(ws, {
+                        "type": "error",
+                        "payload": {"message": "Speech inference failed"},
+                        "timestamp": time.time() * 1000,
+                    })
+                    continue
+
+                if result:
+                    await manager.send_json(ws, {
+                        "type": "speech_result",
                         "payload": result.model_dump(),
                         "timestamp": time.time() * 1000,
                     })

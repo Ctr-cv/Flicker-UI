@@ -1,13 +1,13 @@
-import type { WSMessage, GestureResult } from "@/types";
+import type { WSMessage, GestureResult, SpeechResult } from "@/types";
 
 type MessageHandler = (msg: WSMessage) => void;
 
-function getDefaultGestureWsUrl() {
+function getDefaultWsUrl(path: string) {
   if (typeof window === "undefined") {
-    return "ws://localhost/ws/gesture";
+    return `ws://localhost${path}`;
   }
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.host}/ws/gesture`;
+  return `${protocol}://${window.location.host}${path}`;
 }
 
 /**
@@ -27,7 +27,7 @@ export class GestureWebSocket {
   /** Fires when connection state changes. */
   onConnectionChange?: (connected: boolean) => void;
 
-  constructor(url = getDefaultGestureWsUrl()) {
+  constructor(url = getDefaultWsUrl("/ws/gesture")) {
     this.url = url;
   }
 
@@ -149,3 +149,143 @@ export class GestureWebSocket {
 
 /** Singleton instance. */
 export const gestureWs = new GestureWebSocket();
+
+
+/**
+ * Persistent WebSocket client for real-time speech streaming.
+ * Handles reconnection with exponential backoff.
+ */
+export class SpeechWebSocket {
+  private ws: WebSocket | null = null;
+  private url: string;
+  private handlers: Map<string, Set<MessageHandler>> = new Map();
+  private reconnectAttempts = 0;
+  private maxReconnect = 10;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private _connected = false;
+  private shouldReconnect = true;
+
+  /** Fires when connection state changes. */
+  onConnectionChange?: (connected: boolean) => void;
+
+  constructor(url = getDefaultWsUrl("/ws/speech")) {
+    this.url = url;
+  }
+
+  get connected() {
+    return this._connected;
+  }
+
+  connect() {
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    ) {
+      return;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.shouldReconnect = true;
+
+    try {
+      this.ws = new WebSocket(this.url);
+
+      this.ws.onopen = () => {
+        this._connected = true;
+        this.reconnectAttempts = 0;
+        this.onConnectionChange?.(true);
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const msg: WSMessage = JSON.parse(event.data);
+          this.emit(msg.type, msg);
+        } catch {
+          console.warn("[SpeechWS] Failed to parse message:", event.data);
+        }
+      };
+
+      this.ws.onclose = () => {
+        this.ws = null;
+        this._connected = false;
+        this.onConnectionChange?.(false);
+        if (this.shouldReconnect) {
+          this.scheduleReconnect();
+        }
+      };
+
+      this.ws.onerror = () => {
+        this.ws?.close();
+      };
+    } catch {
+      this.scheduleReconnect();
+    }
+  }
+
+  disconnect() {
+    this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = this.maxReconnect;
+    this.ws?.close();
+    this.ws = null;
+    this._connected = false;
+    this.onConnectionChange?.(false);
+  }
+
+  /** Send lip landmark frame to the backend for inference. */
+  sendFrame(lipLandmarks: number[][]) {
+    if (this.ws?.readyState !== WebSocket.OPEN) return;
+
+    const msg: WSMessage = {
+      type: "speech_frame",
+      payload: { lip_landmarks: lipLandmarks },
+      timestamp: Date.now(),
+    };
+    this.ws.send(JSON.stringify(msg));
+  }
+
+  /** Subscribe to a message type. Returns an unsubscribe function. */
+  on(type: string, handler: MessageHandler): () => void {
+    if (!this.handlers.has(type)) {
+      this.handlers.set(type, new Set());
+    }
+    this.handlers.get(type)!.add(handler);
+
+    return () => {
+      this.handlers.get(type)?.delete(handler);
+    };
+  }
+
+  /** Convenience: subscribe to speech results. */
+  onSpeechResult(handler: (result: SpeechResult) => void): () => void {
+    return this.on("speech_result", (msg) => {
+      handler(msg.payload as SpeechResult);
+    });
+  }
+
+  private emit(type: string, msg: WSMessage) {
+    this.handlers.get(type)?.forEach((h) => h(msg));
+    this.handlers.get("*")?.forEach((h) => h(msg));
+  }
+
+  private scheduleReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnect) return;
+    if (this.reconnectTimer) return;
+
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30_000);
+    this.reconnectAttempts++;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
+  }
+}
+
+/** Singleton instance. */
+export const speechWs = new SpeechWebSocket();

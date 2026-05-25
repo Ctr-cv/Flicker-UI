@@ -22,9 +22,22 @@ export interface GestureResult {
   timestamp: number;
 }
 
+/* ── Speech Types ──────────────────────────────────────────── */
+
+export interface SpeechResult {
+  /** Recognized word or command */
+  word: string;
+  /** Confidence 0-1 */
+  confidence: number;
+  /** Model inference latency in ms */
+  latency: number;
+  /** Timestamp of recognition */
+  timestamp: number;
+}
+
 /* ── Modality Types (extensible) ──────────────────────────── */
 
-export type ModalityType = "gesture" | "haptics" | "audio" | "neural";
+export type ModalityType = "gesture" | "haptics" | "audio" | "neural" | "speech";
 
 export interface ModalityStatus {
   type: ModalityType;
@@ -38,6 +51,8 @@ export interface ModalityStatus {
 export type WSMessageType =
   | "gesture_frame"
   | "gesture_result"
+  | "speech_frame"
+  | "speech_result"
   | "status_update"
   | "error"
   | "ping"
