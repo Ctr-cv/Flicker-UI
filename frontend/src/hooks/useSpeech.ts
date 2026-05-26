@@ -24,10 +24,10 @@ export function useSpeech() {
   const captureActive = useSpeechStore((s) => s.captureActive);
   const setCaptureError = useSpeechStore((s) => s.setCaptureError);
   const clearCaptureError = useSpeechStore((s) => s.clearCaptureError);
+  const setLandmarkerReady = useSpeechStore((s) => s.setLandmarkerReady);
   const streamRef = useRef<MediaStream | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // MediaPipe & Processing Refs
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const requestRef = useRef<number | null>(null);
@@ -35,13 +35,12 @@ export function useSpeech() {
   const lastProcessTimeRef = useRef<number>(0);
   const detectErrorReportedRef = useRef(false);
 
-  // Mount Face Landmarker exactly once
   useEffect(() => {
     let isMounted = true;
-    const initMediaPipe = async () => {
-      try {
-        const vision = await FilesetResolver.forVisionTasks("/wasm");
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
+
+    FilesetResolver.forVisionTasks("/wasm")
+      .then((vision) =>
+        FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: "/models/face_landmarker.task",
             delegate: "GPU",
@@ -50,26 +49,26 @@ export function useSpeech() {
           numFaces: 1,
           outputFaceBlendshapes: false,
           outputFacialTransformationMatrixes: false,
-        });
-
+        })
+      )
+      .then((landmarker) => {
         if (isMounted) {
           landmarkerRef.current = landmarker;
+          setLandmarkerReady(true);
           clearCaptureError();
           if (DEBUG_SPEECH) {
             console.info("[useSpeech] Face landmarker loaded.");
           }
         }
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error("[useSpeech] Failed to initialize Face Landmarker:", err);
         if (isMounted) {
           setCaptureError(
             "Failed to load face tracking model. Verify /wasm and /models/face_landmarker.task assets."
           );
         }
-      }
-    };
-
-    initMediaPipe();
+      });
 
     return () => {
       isMounted = false;
@@ -77,10 +76,10 @@ export function useSpeech() {
         landmarkerRef.current.close();
       }
     };
-  }, [clearCaptureError, setCaptureError]);
+  }, [clearCaptureError, setCaptureError, setLandmarkerReady]);
 
-  // Process frames: detect face, extract lip landmarks, send via WebSocket
   const processFrame = useCallback(() => {
+    if (!useSpeechStore.getState().captureActive) return;
     try {
       if (!videoRef.current || !landmarkerRef.current) return;
       const now = performance.now();
@@ -92,7 +91,6 @@ export function useSpeech() {
 
           const results = landmarkerRef.current.detectForVideo(videoRef.current, now);
           if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-            // Extract lip landmarks from the first detected face
             const faceLandmarks = results.faceLandmarks[0];
             const lipLandmarks: number[][] = LIP_INDICES.map((i) => [
               faceLandmarks[i].x,
@@ -102,7 +100,9 @@ export function useSpeech() {
             if (DEBUG_SPEECH) {
               console.debug(`[useSpeech] Sending ${lipLandmarks.length} lip landmarks.`);
             }
-            speechWs.sendFrame(lipLandmarks);
+            if (speechWs.connected) {
+              speechWs.sendFrame(lipLandmarks);
+            }
           }
         }
       }

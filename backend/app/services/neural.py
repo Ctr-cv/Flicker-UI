@@ -5,10 +5,13 @@ Manages the lifecycle of all modality engines and exposes inference
 methods. Designed to be extensible — register new engines to
 integrate additional modalities without touching the rest of the backend.
 """
+import logging
 import time
 
 from app.engine.base import BaseModelEngine
 from app.engine.gesture_model import GestureModelEngine
+
+logger = logging.getLogger("flicker.neural")
 
 
 class NeuralService:
@@ -68,6 +71,7 @@ class NeuralService:
         """
         engine = self._engines.get(modality)
         if engine is None:
+            logger.warning("Engine not found for modality '%s'. Available: %s", modality, list(self._engines.keys()))
             return ("none", 0.0)
         prev = time.time()
         label, confidence = engine.predict(data)

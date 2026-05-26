@@ -77,26 +77,22 @@ export function useCamera() {
 
   // Helper to process frames
   const processFrame = useCallback(() => {
-    // needs both video and landmarker setup to process
+    if (!useGestureStore.getState().cameraActive) return;
     try {
       if (!videoRef.current || !landmarkerRef.current) return
-      // Match the exact fps using lastVideoTimeRef and lastProcessTimeRef
       const now = performance.now()
       const timePast = now - lastProcessTimeRef.current
       if (timePast > (1000 / TARGET_FPS)) {
-        // check if video frame is updated
         if (videoRef.current.currentTime !== lastVideoTimeRef.current) {
           lastVideoTimeRef.current = videoRef.current.currentTime;
           lastProcessTimeRef.current = now
 
           const results = landmarkerRef.current.detectForVideo(videoRef.current, now);
           if (results.landmarks && results.landmarks.length > 0) {
-            console.log(results.landmarks)
             let confidence = -1
             if (results.handedness) confidence = results.handedness[0][0].score
             if (confidence < 0.9) return
 
-            // Extract all 21 landmarks for the first detected hand
             const handLandmarks = results.landmarks[0];
             const all_landmarks: number[][] = handLandmarks.map((landmark) => [
               landmark.x,
@@ -106,9 +102,13 @@ export function useCamera() {
             if (DEBUG_CAMERA) {
               console.debug(`[useCamera] Sending ${all_landmarks.length} landmarks.`);
             }
-            gestureWs.sendFrame(all_landmarks);
+            if (gestureWs.connected) {
+              gestureWs.sendFrame(all_landmarks);
+            }
           } else {
-            gestureWs.sendFrame([]);
+            if (gestureWs.connected) {
+              gestureWs.sendFrame([]);
+            }
           }
         }
       }

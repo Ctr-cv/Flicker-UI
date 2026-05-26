@@ -1,9 +1,15 @@
 """
-Audio response service — extension point.
+Audio response service — extension point for gesture sonification.
 
-This module provides audio feedback integration for gesture recognition.
-It supports configurable sound patterns, device mapping, gesture sonification,
-and spatial audio positioning through the Web Audio API and connected devices.
+This module is a stub for future audio feedback driven by gesture
+recognition results. It is NOT related to the silent-speech (lip-reading)
+pipeline — that feature lives in services/speech.py and engine/speech_model.py.
+
+When implemented, this service will support:
+  - Configurable sound patterns mapped to gesture labels
+  - Device discovery via Web Audio API
+  - Gesture-to-audio parameter mapping (pitch, duration, spatial position)
+  - Web MIDI / Web Audio API integration
 """
 
 

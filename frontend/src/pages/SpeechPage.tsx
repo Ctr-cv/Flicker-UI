@@ -1,42 +1,37 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { HeroBadge } from "@/components/ui/HeroBadge";
 import { ModuleCard } from "@/components/ui/ModuleCard";
 import { useSpeechStore } from "@/stores/speechStore";
 import { useSpeech } from "@/hooks/useSpeech";
 import { speechWs } from "@/services/websocket";
 
-export function AudioPage() {
+export function SpeechPage() {
   const currentSpeech = useSpeechStore((s) => s.currentSpeech);
   const speechHistory = useSpeechStore((s) => s.speechHistory);
   const captureActive = useSpeechStore((s) => s.captureActive);
   const captureError = useSpeechStore((s) => s.captureError);
+  const landmarkerReady = useSpeechStore((s) => s.landmarkerReady);
   const setCaptureActive = useSpeechStore((s) => s.setCaptureActive);
   const setConnected = useSpeechStore((s) => s.setConnected);
   const pushSpeech = useSpeechStore((s) => s.pushSpeech);
 
   const { bindPreviewVideoElement } = useSpeech();
 
-  const disconnectTimeoutRef = useRef(0);
-
-  // Manage speech WebSocket lifecycle
   useEffect(() => {
-    if (disconnectTimeoutRef.current) {
-      clearTimeout(disconnectTimeoutRef.current);
-    }
     speechWs.onConnectionChange = setConnected;
     speechWs.connect();
 
-    const unsub = speechWs.onSpeechResult((result) => {
+    const unsub = speechWs.onResult((result) => {
       pushSpeech(result);
     });
 
     return () => {
       unsub();
-      disconnectTimeoutRef.current = setTimeout(() => {
-        speechWs.disconnect();
-      }, 200);
+      speechWs.disconnect();
     };
   }, [setConnected, pushSpeech]);
+
+  const loading = !landmarkerReady;
 
   return (
     <section className="pt-36 px-20 pb-40 max-w-7xl">
@@ -67,7 +62,18 @@ export function AudioPage() {
                 }`}
               />
 
-              {!captureActive && (
+              {loading && (
+                <div className="text-center space-y-4 relative z-10">
+                  <span className="material-symbols-outlined text-on-surface-variant/30 text-6xl animate-pulse">
+                    progress_activity
+                  </span>
+                  <p className="text-sm text-on-surface-variant/50">
+                    Loading face model...
+                  </p>
+                </div>
+              )}
+
+              {!loading && !captureActive && (
                 <div className="text-center space-y-4 relative z-10">
                   <span className="material-symbols-outlined text-on-surface-variant/30 text-6xl">
                     face
@@ -93,13 +99,20 @@ export function AudioPage() {
               </div>
               <button
                 onClick={() => setCaptureActive(!captureActive)}
+                disabled={loading}
                 className={`px-6 py-3 rounded-md font-label text-xs tracking-widest uppercase font-bold transition-all ${
-                  captureActive
-                    ? "bg-error text-on-error shadow-[0_10px_20px_-5px_rgba(186,26,26,0.3)]"
-                    : "bg-primary text-on-primary shadow-[0_10px_20px_-5px_rgba(144,75,54,0.3)]"
+                  loading
+                    ? "bg-outline/20 text-outline cursor-not-allowed"
+                    : captureActive
+                      ? "bg-error text-on-error shadow-[0_10px_20px_-5px_rgba(186,26,26,0.3)]"
+                      : "bg-primary text-on-primary shadow-[0_10px_20px_-5px_rgba(144,75,54,0.3)]"
                 }`}
               >
-                {captureActive ? "Stop Capture" : "Start Capture"}
+                {loading
+                  ? "Loading..."
+                  : captureActive
+                    ? "Stop Capture"
+                    : "Start Capture"}
               </button>
             </div>
             {captureError && (

@@ -1,6 +1,13 @@
-import type { WSMessage, GestureResult, SpeechResult } from "@/types";
+import type { WSMessage, WSMessageType, GestureResult, SpeechResult } from "@/types";
 
 type MessageHandler = (msg: WSMessage) => void;
+
+interface WsConfig {
+  path: string;
+  frameType: WSMessageType;
+  framePayloadKey: string;
+  resultType: WSMessageType;
+}
 
 function getDefaultWsUrl(path: string) {
   if (typeof window === "undefined") {
@@ -11,10 +18,10 @@ function getDefaultWsUrl(path: string) {
 }
 
 /**
- * Persistent WebSocket client for real-time gesture streaming.
+ * Generic WebSocket client for real-time modality streaming.
  * Handles reconnection with exponential backoff.
  */
-export class GestureWebSocket {
+export class ModalityWebSocket<TResult = unknown> {
   private ws: WebSocket | null = null;
   private url: string;
   private handlers: Map<string, Set<MessageHandler>> = new Map();
@@ -23,12 +30,14 @@ export class GestureWebSocket {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _connected = false;
   private shouldReconnect = true;
+  private config: WsConfig;
 
   /** Fires when connection state changes. */
   onConnectionChange?: (connected: boolean) => void;
 
-  constructor(url = getDefaultWsUrl("/ws/gesture")) {
-    this.url = url;
+  constructor(config: WsConfig) {
+    this.config = config;
+    this.url = getDefaultWsUrl(config.path);
   }
 
   get connected() {
@@ -62,148 +71,7 @@ export class GestureWebSocket {
           const msg: WSMessage = JSON.parse(event.data);
           this.emit(msg.type, msg);
         } catch {
-          console.warn("[GestureWS] Failed to parse message:", event.data);
-        }
-      };
-
-      this.ws.onclose = () => {
-        this.ws = null;
-        this._connected = false;
-        this.onConnectionChange?.(false);
-        if (this.shouldReconnect) {
-          this.scheduleReconnect();
-        }
-      };
-
-      this.ws.onerror = () => {
-        this.ws?.close();
-      };
-    } catch {
-      this.scheduleReconnect();
-    }
-  }
-
-  disconnect() {
-    this.shouldReconnect = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.reconnectAttempts = this.maxReconnect; // prevent reconnection
-    this.ws?.close();
-    this.ws = null;
-    this._connected = false;
-    this.onConnectionChange?.(false);
-  }
-
-  /** Send a gesture frame to the backend for inference. */
-  sendFrame(landmarks: number[][]) {
-    if (this.ws?.readyState !== WebSocket.OPEN) return;
-
-    const msg: WSMessage = {
-      type: "gesture_frame",
-      payload: { landmarks },
-      timestamp: Date.now(),
-    };
-    this.ws.send(JSON.stringify(msg));
-  }
-
-  /** Subscribe to a message type. Returns an unsubscribe function. */
-  on(type: string, handler: MessageHandler): () => void {
-    if (!this.handlers.has(type)) {
-      this.handlers.set(type, new Set());
-    }
-    this.handlers.get(type)!.add(handler);
-
-    return () => {
-      this.handlers.get(type)?.delete(handler);
-    };
-  }
-
-  /** Convenience: subscribe to gesture results. */
-  onGestureResult(handler: (result: GestureResult) => void): () => void {
-    return this.on("gesture_result", (msg) => {
-      handler(msg.payload as GestureResult);
-    });
-  }
-
-  private emit(type: string, msg: WSMessage) {
-    this.handlers.get(type)?.forEach((h) => h(msg));
-    // Also emit on wildcard
-    this.handlers.get("*")?.forEach((h) => h(msg));
-  }
-
-  private scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnect) return;
-    if (this.reconnectTimer) return;
-
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30_000);
-    this.reconnectAttempts++;
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.connect();
-    }, delay);
-  }
-}
-
-/** Singleton instance. */
-export const gestureWs = new GestureWebSocket();
-
-
-/**
- * Persistent WebSocket client for real-time speech streaming.
- * Handles reconnection with exponential backoff.
- */
-export class SpeechWebSocket {
-  private ws: WebSocket | null = null;
-  private url: string;
-  private handlers: Map<string, Set<MessageHandler>> = new Map();
-  private reconnectAttempts = 0;
-  private maxReconnect = 10;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private _connected = false;
-  private shouldReconnect = true;
-
-  /** Fires when connection state changes. */
-  onConnectionChange?: (connected: boolean) => void;
-
-  constructor(url = getDefaultWsUrl("/ws/speech")) {
-    this.url = url;
-  }
-
-  get connected() {
-    return this._connected;
-  }
-
-  connect() {
-    if (
-      this.ws?.readyState === WebSocket.OPEN ||
-      this.ws?.readyState === WebSocket.CONNECTING
-    ) {
-      return;
-    }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.shouldReconnect = true;
-
-    try {
-      this.ws = new WebSocket(this.url);
-
-      this.ws.onopen = () => {
-        this._connected = true;
-        this.reconnectAttempts = 0;
-        this.onConnectionChange?.(true);
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const msg: WSMessage = JSON.parse(event.data);
-          this.emit(msg.type, msg);
-        } catch {
-          console.warn("[SpeechWS] Failed to parse message:", event.data);
+          console.warn("[WS] Failed to parse message:", event.data);
         }
       };
 
@@ -237,13 +105,13 @@ export class SpeechWebSocket {
     this.onConnectionChange?.(false);
   }
 
-  /** Send lip landmark frame to the backend for inference. */
-  sendFrame(lipLandmarks: number[][]) {
+  /** Send a frame to the backend for inference. */
+  sendFrame(data: number[][]) {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
 
     const msg: WSMessage = {
-      type: "speech_frame",
-      payload: { lip_landmarks: lipLandmarks },
+      type: this.config.frameType,
+      payload: { [this.config.framePayloadKey]: data },
       timestamp: Date.now(),
     };
     this.ws.send(JSON.stringify(msg));
@@ -261,10 +129,10 @@ export class SpeechWebSocket {
     };
   }
 
-  /** Convenience: subscribe to speech results. */
-  onSpeechResult(handler: (result: SpeechResult) => void): () => void {
-    return this.on("speech_result", (msg) => {
-      handler(msg.payload as SpeechResult);
+  /** Subscribe to inference results for this modality. */
+  onResult(handler: (result: TResult) => void): () => void {
+    return this.on(this.config.resultType, (msg) => {
+      handler(msg.payload as TResult);
     });
   }
 
@@ -287,5 +155,18 @@ export class SpeechWebSocket {
   }
 }
 
-/** Singleton instance. */
-export const speechWs = new SpeechWebSocket();
+/** Gesture WebSocket singleton. */
+export const gestureWs = new ModalityWebSocket<GestureResult>({
+  path: "/ws/gesture",
+  frameType: "gesture_frame",
+  framePayloadKey: "landmarks",
+  resultType: "gesture_result",
+});
+
+/** Speech WebSocket singleton. */
+export const speechWs = new ModalityWebSocket<SpeechResult>({
+  path: "/ws/speech",
+  frameType: "speech_frame",
+  framePayloadKey: "lip_landmarks",
+  resultType: "speech_result",
+});

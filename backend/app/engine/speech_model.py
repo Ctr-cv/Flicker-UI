@@ -1,28 +1,30 @@
 """
-Speech model engine — placeholder implementation.
+Speech model engine — LSTM + MLP for silent speech (visual lip-reading).
 
-Silent speech (visual lip-reading) module. Extracts lip landmark
-sequences from MediaPipe Face Landmarker and classifies them into
-word or command labels.
+Extracts lip landmark sequences from MediaPipe Face Landmarker and
+classifies them into word or command labels via a PyTorch model.
 
-Replace the body of `predict()` with your actual lip-reading model
-inference. The buffer and temporal window are pre-configured for a
-sequence model (LSTM / Transformer) consuming 60-frame windows with
-stride-3 downsampling.
+Architecture: LSTM (2-layer, 128-hidden) → LayerNorm → MLP (128→64→N_CLASSES)
+Buffer: 60-frame rolling window, stride-3 downsampling → 20-frame sequences
+Input:  121-dim features (40 lip points × 3 coords + face flag)
+Output: 9 classes (SILENCE, YES, NO, START, STOP, NEXT, PREVIOUS, SELECT, HELP)
 
-Integration example (your model):
-    from your_model_package import LipReadingModel
-    self._model = LipReadingModel.load("speech_weights.pt")
-    word, score = self._model(lip_landmarks)
+To train a custom model:
+    1. Train a SpeechLSTM with your labelled dataset
+    2. Save weights to speech_model.pth in this directory
+    3. The engine auto-loads on backend startup
 """
 
 import time
 import logging
 from enum import Enum
+from pathlib import Path
 
 import numpy as np
+import torch
 
 from app.engine.base import BaseModelEngine
+from app.engine.speech_torch import SpeechModel
 
 logger = logging.getLogger("flicker.speech")
 
@@ -49,11 +51,14 @@ LIP_COUNT = 40
 LIP_DIMENSIONS = 3
 FEATURE_DIM = LIP_COUNT * LIP_DIMENSIONS + 1  # 121-dimensional feature vector
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+HIDDEN_SIZE = 128
+NUM_LAYERS = 2
+NUM_CLASSES = len(SpeechLabels)
+
 
 class SpeechModelEngine(BaseModelEngine):
-    """
-    Template for the silent-speech / lip-reading model.
-    """
+    """Silent-speech lip-reading engine backed by a PyTorch LSTM+MLP model."""
 
     def __init__(self) -> None:
         self._loaded = False
@@ -70,15 +75,26 @@ class SpeechModelEngine(BaseModelEngine):
 
     def load(self) -> None:
         """
-        Load your lip-reading model here.
-
-        Example:
-            from your_model import LipReadingModel
-            self._model = LipReadingModel.load("path/to/weights")
-            self._model.eval()
+        Load the silent-speech LSTM+MLP model.
+        If speech_model.pth does not exist, initialises with random weights.
         """
+        device = torch.device("cpu")
+        model = SpeechModel(FEATURE_DIM, HIDDEN_SIZE, NUM_LAYERS, NUM_CLASSES).to(device)
+        weights_path = PROJECT_ROOT / "app" / "engine" / "speech_model.pth"
+        if weights_path.exists():
+            state = torch.load(weights_path, map_location=device, weights_only=True)
+            model.load_state_dict(state)
+            logger.info("Speech model weights loaded from %s", weights_path)
+        else:
+            logger.warning(
+                "speech_model.pth not found at %s — using random weights. "
+                "Predictions will be non-deterministic until training.",
+                weights_path,
+            )
+        model.eval()
+        self._model = model
         self._loaded = True
-        logger.info("Speech model engine loaded (placeholder — no model weights).")
+        logger.info("Speech model engine loaded.")
 
     def unload(self) -> None:
         self._model = None
@@ -100,13 +116,11 @@ class SpeechModelEngine(BaseModelEngine):
 
         Returns:
             (word_label, confidence) tuple.
-
-        TODO: Replace with your actual model inference:
-            result = self._model.predict(lip_landmarks)
-            return result.word, result.confidence
         """
         label, confidence = "SILENCE", 0.0
         if not self._loaded or not lip_landmarks:
+            return label, confidence
+        if self._model is None:
             return label, confidence
 
         landmark_data = self.normalize(lip_landmarks)
@@ -121,17 +135,14 @@ class SpeechModelEngine(BaseModelEngine):
         if self._prediction is not None and (now - self._last_inference_time) < SPEECH_TIMEOUT:
             return self._prediction, self._confidence
 
-        # ── Placeholder inference ──────────────────────────────────
-        # When you integrate your model, replace the block below:
-        #
-        #   data = self._buffer[::FRAME_STRIDE]
-        #   data = data[np.newaxis, :]
-        #   prediction = self._model(data)
-        #   label_int, confidence = self.softmax(prediction)
-        #   label = SpeechLabels(label_int).name
-        #
-        # For now, always returns SILENCE / 0.0 until the model is wired in.
-        #
+        data = self._buffer[::FRAME_STRIDE]
+        data = data[np.newaxis, :]
+
+        input_tensor = torch.from_numpy(data).float()
+        with torch.no_grad():
+            logits = self._model(input_tensor).numpy()
+        label_int, confidence = self.softmax(logits)
+        label = SpeechLabels(label_int).name
         self._prediction = label
         self._confidence = confidence
         self._last_inference_time = now

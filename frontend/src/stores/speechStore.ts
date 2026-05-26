@@ -18,6 +18,10 @@ interface SpeechState {
   captureError: string | null;
   setCaptureError: (message: string) => void;
   clearCaptureError: () => void;
+
+  /* ── MediaPipe status ───────────────────────────────── */
+  landmarkerReady: boolean;
+  setLandmarkerReady: (v: boolean) => void;
 }
 
 const MAX_HISTORY = 200;
@@ -40,4 +44,7 @@ export const useSpeechStore = create<SpeechState>((set) => ({
   captureError: null,
   setCaptureError: (message) => set({ captureError: message }),
   clearCaptureError: () => set({ captureError: null }),
+
+  landmarkerReady: false,
+  setLandmarkerReady: (v) => set({ landmarkerReady: v }),
 }));

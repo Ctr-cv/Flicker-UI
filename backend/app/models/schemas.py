@@ -106,4 +106,5 @@ class WSMessage(BaseModel):
 
 class InferenceConfig(BaseModel):
     confidence_threshold: float | None = None
+    speech_confidence_threshold: float | None = None
     batch_size: int | None = None

@@ -13,19 +13,12 @@ _start_time = time.time()
 async def get_status():
     modalities = [
         ModalityStatus(
-            type="gesture",
-            active=neural_service.is_loaded("gesture"),
-            latency=neural_service.get_latency("gesture"),
-            fidelity=neural_service.get_fidelity("gesture"),
-        ),
-        ModalityStatus(
-            type="speech",
-            active=neural_service.is_loaded("speech"),
-            latency=neural_service.get_latency("speech"),
-            fidelity=neural_service.get_fidelity("speech"),
-        ),
-        ModalityStatus(type="haptics", active=False, latency=0.0, fidelity=0.0),
-        ModalityStatus(type="audio", active=False, latency=0.0, fidelity=0.0),
+            type=m,
+            active=neural_service.is_loaded(m),
+            latency=neural_service.get_latency(m),
+            fidelity=neural_service.get_fidelity(m),
+        )
+        for m in neural_service.all_modalities
     ]
 
     status = SystemStatus(

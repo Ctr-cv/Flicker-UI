@@ -4,7 +4,7 @@ import type { NavItem } from "@/types";
 const NAV_ITEMS: NavItem[] = [
   { id: "intro", label: "Intro", icon: "info", path: "/intro" },
   { id: "motion", label: "Motion", icon: "gesture", path: "/motion" },
-  { id: "audio", label: "Audio", icon: "graphic_eq", path: "/audio" },
+  { id: "speech", label: "Speech", icon: "graphic_eq", path: "/speech" },
   { id: "neural", label: "Neural", icon: "psychology", path: "/neural" },
   { id: "cloud", label: "Cloud", icon: "cloud_sync", path: "/cloud" },
 ];
